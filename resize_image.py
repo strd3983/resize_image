@@ -2,6 +2,7 @@ import os
 import ctypes
 import imghdr
 from PIL import Image
+Image.LOAD_TRUNCATED_IMAGES = True
 
 FILE_ATTRIBUTE_HIDDEN: int = 2
 FILE_ATTRIBUTE_READONLY: int = 1
@@ -85,3 +86,5 @@ def recursive_resize_img_file(file_path):
 
 dir = os.getcwd()
 recursive_resize_img_file(dir)
+print('終了しました')
+os.system('PAUSE')
