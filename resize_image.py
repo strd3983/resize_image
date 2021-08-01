@@ -109,13 +109,14 @@ def resize_img_file(fp, rSIZE, rTYPE):
 
     # 長編サイズがrSIZE px以下のときはスルー
     MAX_SIZE = max(img.width, img.height)
-    lSIZE = round(img.height * rSIZE / img.width)
     if MAX_SIZE <= rSIZE:
         convert_type(fp, img)
         return
     elif img.width > img.height:
+        lSIZE = round(img.height * rSIZE / img.width)
         img_resize = img.resize((rSIZE, lSIZE), rTYPE)
     else:
+        lSIZE = round(img.width * rSIZE / img.height)
         img_resize = img.resize((lSIZE, rSIZE), rTYPE)
     convert_type(fp, img_resize)
 
