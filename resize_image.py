@@ -4,6 +4,7 @@ import imghdr
 import configparser
 from PIL import Image
 
+version = 'v2.2'
 Image.LOAD_TRUNCATED_IMAGES = True
 FILE_ATTRIBUTE_HIDDEN: int = 2
 FILE_ATTRIBUTE_READONLY: int = 1
@@ -15,6 +16,8 @@ REV_TARGETBITS = ~TARGETBITS
 # メイン関数
 # --------------------------------------------------
 def main():
+    print('\n画像圧縮 by Python')
+    print('Version:', version, '\n')
     rSIZE = 0  # リサイズサイズ
     rTYPE = 6  # フィルタタイプ
     rSIZE, rTYPE = config()
@@ -46,10 +49,10 @@ def config():
             rSIZE = read_default.get('長辺サイズ')
             rTYPE = read_default.get('アルゴリズム')
             # 設定出力
-            print('#---------------------------------#')
+            print('###---------------------------------###')
             print('長辺サイズ:', rSIZE)
             print('リサイズアルゴリズム:', rTYPE)
-            print('#---------------------------------#')
+            print('###---------------------------------###')
             return int(rSIZE), int(rTYPE)
     else:
         print('setting.iniが見つかりません\n')
