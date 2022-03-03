@@ -4,7 +4,7 @@ import imghdr
 import configparser
 from PIL import Image
 
-version = 'v2.2'
+version = 'v3.1'
 Image.LOAD_TRUNCATED_IMAGES = True
 FILE_ATTRIBUTE_HIDDEN: int = 2
 FILE_ATTRIBUTE_READONLY: int = 1
@@ -17,7 +17,7 @@ REV_TARGETBITS = ~TARGETBITS
 # --------------------------------------------------
 def main():
     print('\n画像圧縮 by Python')
-    print('Version:', version, '\n')
+    print(f'Version:{version}\n')
     rSIZE = 0  # リサイズサイズ
     rTYPE = 6  # フィルタタイプ
     rSIZE, rTYPE = config()
@@ -35,8 +35,8 @@ def main():
 # read_file()関数によるiniファイルの読み込み
 # --------------------------------------------------
 def config():
-    global rSIZE
-    global rTYPE
+    rSIZE = 0  # リサイズサイズ
+    rTYPE = 6  # フィルタタイプ
     config_ini = configparser.ConfigParser()
     config_ini_path = 'setting.ini'
     # iniファイルが存在するかチェック

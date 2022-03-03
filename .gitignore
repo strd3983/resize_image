@@ -1,3 +1,8 @@
-*.spec
-/__pycache__/
-/build/
+*
+!*.exe
+!*.gitignore
+!*.py
+!Pipfile
+!Pipfile.lock
+!*.md
+!*.ini
