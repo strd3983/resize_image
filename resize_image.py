@@ -4,7 +4,7 @@ import imghdr
 import configparser
 from PIL import Image
 
-version = 'v3.1'
+version = 'v3.2'
 Image.LOAD_TRUNCATED_IMAGES = True
 FILE_ATTRIBUTE_HIDDEN: int = 2
 FILE_ATTRIBUTE_READONLY: int = 1
@@ -22,13 +22,26 @@ def main():
     rTYPE = 6  # フィルタタイプ
     rSIZE, rTYPE = config()
     if rSIZE <= 0 or rTYPE < 0 or 5 < rTYPE:
-        print('=> setting.iniの値が不適切です\n')
+        print('E: setting.iniの値が不適切です\n')
         return
-    dir = os.getcwd()
     try:
-        recursive_resize_img_file(dir, rSIZE, rTYPE)
+        recursive_resize_img_file(rel2abs_path('', 'exe'), rSIZE, rTYPE)
     except OSError:
-        print('画像読み込みエラー')
+        print('E: 画像読み込みエラー')
+
+
+# --------------------------------------------------
+# 絶対パスを相対パスに [入:相対パス, 実行ファイル側or展開フォルダ側 出:絶対パス]
+# --------------------------------------------------
+def rel2abs_path(filename, attr):
+    import sys
+    if attr == 'temp':  # 展開先フォルダと同階層
+        datadir = os.path.dirname(__file__)
+    elif attr == 'exe':  # exeファイルと同階層の絶対パス
+        datadir = os.path.dirname(sys.argv[0])
+    else:
+        raise print(f'E: 相対パスの引数ミス [{attr}]')
+    return os.path.join(datadir, filename)
 
 
 # --------------------------------------------------
@@ -38,7 +51,7 @@ def config():
     rSIZE = 0  # リサイズサイズ
     rTYPE = 6  # フィルタタイプ
     config_ini = configparser.ConfigParser()
-    config_ini_path = 'setting.ini'
+    config_ini_path = rel2abs_path('setting.ini', 'exe')
     # iniファイルが存在するかチェック
     if os.path.exists(config_ini_path):
         # iniファイルが存在する場合、ファイルを読み込む
@@ -55,7 +68,7 @@ def config():
             print('###---------------------------------###')
             return int(rSIZE), int(rTYPE)
     else:
-        print('setting.iniが見つかりません\n')
+        print('E: setting.iniが見つかりません\n')
         return 0, 6
 
 
@@ -141,6 +154,9 @@ def convert_type(fp, img):
 
 
 if __name__ == "__main__":
-    main()
-    print('終了しました')
+    try:
+        main()
+    except Exception as e:
+        print('E: ', e)
+    print('M: 終了しました')
     os.system('PAUSE')

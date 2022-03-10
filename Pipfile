@@ -6,9 +6,13 @@ name = "pypi"
 [packages]
 configparser = "*"
 pillow = "*"
-nuitka = "*"
 
 [dev-packages]
+mypy = "*"
+flake8 = "*"
+autopep8 = "*"
+nuitka = "*"
+zstandard = "*"
 
 [requires]
-python_version = "3.9"
+python_version = "3.10"
