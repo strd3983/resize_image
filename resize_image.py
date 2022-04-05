@@ -1,21 +1,14 @@
 import os
-import ctypes
-import imghdr
-import configparser
-from PIL import Image
-
-version = 'v3.2'
-Image.LOAD_TRUNCATED_IMAGES = True
-FILE_ATTRIBUTE_HIDDEN: int = 2
-FILE_ATTRIBUTE_READONLY: int = 1
-TARGETBITS: int = FILE_ATTRIBUTE_READONLY + FILE_ATTRIBUTE_HIDDEN
-REV_TARGETBITS = ~TARGETBITS
+version = 'v4.0'
 
 
 # --------------------------------------------------
 # メイン関数
 # --------------------------------------------------
 def main():
+    import glob
+    from tqdm import tqdm
+
     print('\n画像圧縮 by Python')
     print(f'Version:{version}\n')
     rSIZE = 0  # リサイズサイズ
@@ -24,10 +17,17 @@ def main():
     if rSIZE <= 0 or rTYPE < 0 or 5 < rTYPE:
         print('E: setting.iniの値が不適切です\n')
         return
-    try:
-        recursive_resize_img_file(rel2abs_path('', 'exe'), rSIZE, rTYPE)
-    except OSError:
-        print('E: 画像読み込みエラー')
+    fps = []
+    for fp in glob.glob(os.path.join(rel2abs_path('', 'exe'), '**'), recursive=True):
+        if os.path.isdir(fp):
+            print(fp)
+        if os.path.isfile(fp) and file_type(fp) is not None:
+            fps.append(fp)
+    for fp in tqdm(fps, unit=' file'):
+        try:
+            resize_img_file(fp, rSIZE, rTYPE)
+        except OSError as e:
+            print(f'\nE: 画像読み込みエラー: {e}')
 
 
 # --------------------------------------------------
@@ -48,6 +48,8 @@ def rel2abs_path(filename, attr):
 # read_file()関数によるiniファイルの読み込み
 # --------------------------------------------------
 def config():
+    import configparser
+
     rSIZE = 0  # リサイズサイズ
     rTYPE = 6  # フィルタタイプ
     config_ini = configparser.ConfigParser()
@@ -73,22 +75,11 @@ def config():
 
 
 # --------------------------------------------------
-# ファイル探索
-# --------------------------------------------------
-def recursive_resize_img_file(fp, rSIZE, rTYPE):
-    if os.path.isdir(fp):  # ディレクトリだった場合
-        print(fp)
-        files = os.listdir(fp)
-        for file in files:
-            recursive_resize_img_file(os.path.join(fp, file), rSIZE, rTYPE)
-    else:  # ファイルだった場合
-        resize_img_file(fp, rSIZE, rTYPE)
-
-
-# --------------------------------------------------
 # ファイルの画像判定
 # --------------------------------------------------
 def file_type(fp):
+    import imghdr
+
     f = open(fp, 'rb')
     f_head = f.read()[:2]
     f.close()
@@ -102,6 +93,13 @@ def file_type(fp):
 # ファイルの属性解除
 # --------------------------------------------------
 def unsetReadonlyAttrib(fp):
+    import ctypes
+
+    FILE_ATTRIBUTE_HIDDEN: int = 2
+    FILE_ATTRIBUTE_READONLY: int = 1
+    TARGETBITS: int = FILE_ATTRIBUTE_READONLY + FILE_ATTRIBUTE_HIDDEN
+    REV_TARGETBITS = ~TARGETBITS
+
     # Windowsファイル属性を取得
     val: int = ctypes.windll.kernel32.GetFileAttributesW(fp)
     if 0 != (val & 3):
@@ -114,6 +112,11 @@ def unsetReadonlyAttrib(fp):
 # リサイズ処理
 # --------------------------------------------------
 def resize_img_file(fp, rSIZE, rTYPE):
+    from PIL import Image
+    from PIL import ImageFile
+
+    ImageFile.LOAD_TRUNCATED_IMAGES = True
+
     # ファイルが画像ファイルかどうかを確認し、画像ファイルではない場合リサイズ処理は行わない
     img_type = file_type(fp)
     if img_type is None:

@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 configparser = "*"
 pillow = "*"
+tqdm = "*"
 
 [dev-packages]
 mypy = "*"
