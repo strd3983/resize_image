@@ -1,5 +1,5 @@
 import os
-version = 'v4.1'
+version = 'v4.1b'
 
 
 # --------------------------------------------------
@@ -11,10 +11,11 @@ def main():
 
     print('\n画像圧縮 by Python')
     print(f'Version:{version}\n')
-    rSIZE = 0  # リサイズサイズ
+    width = 0  # 横幅
+    height = 0  # 高さ
     rTYPE = 6  # フィルタタイプ
-    rSIZE, rTYPE = config()
-    if rSIZE <= 0 or rTYPE < 0 or 5 < rTYPE:
+    width, height, rTYPE = config()
+    if width <= 0 or height <= 0 or rTYPE < 0 or 5 < rTYPE:
         print('E: setting.iniの値が不適切です\n')
         return
     fps = []
@@ -25,7 +26,7 @@ def main():
             fps.append(fp)
     for fp in tqdm(fps, unit=' file'):
         try:
-            resize_img_file(fp, rSIZE, rTYPE)
+            resize_img_file(fp, width, height, rTYPE)
         except OSError as e:
             print(f'\nE: 画像読み込みエラー: {e}')
 
@@ -50,7 +51,7 @@ def rel2abs_path(filename, attr):
 def config():
     import configparser
 
-    rSIZE = 0  # リサイズサイズ
+    width = 0  # リサイズサイズ
     rTYPE = 6  # フィルタタイプ
     config_ini = configparser.ConfigParser()
     config_ini_path = rel2abs_path('setting.ini', 'exe')
@@ -61,14 +62,16 @@ def config():
             config_ini.read_file(fp)
             # iniの値取得
             read_default = config_ini['DEFAULT']
-            rSIZE = read_default.get('長辺サイズ')
+            width = read_default.get('w')
+            height = read_default.get('h')
             rTYPE = read_default.get('アルゴリズム')
             # 設定出力
             print('###---------------------------------###')
-            print('長辺サイズ:', rSIZE)
+            print('横:', width)
+            print('縦:', height)
             print('リサイズアルゴリズム:', rTYPE)
             print('###---------------------------------###')
-            return int(rSIZE), int(rTYPE)
+            return int(width), int(height), int(rTYPE)
     else:
         print('E: setting.iniが見つかりません\n')
         return 0, 6
@@ -111,7 +114,7 @@ def unsetReadonlyAttrib(fp):
 # --------------------------------------------------
 # リサイズ処理
 # --------------------------------------------------
-def resize_img_file(fp, rSIZE, rTYPE):
+def resize_img_file(fp, width, height, rTYPE):
     from PIL import Image
     from PIL import ImageFile
 
@@ -125,18 +128,7 @@ def resize_img_file(fp, rSIZE, rTYPE):
     # 指定パスのファイル属性を解除
     unsetReadonlyAttrib(fp)
     img = Image.open(fp).convert('RGB')
-
-    # 長編サイズがrSIZE px以下のときはスルー
-    MAX_SIZE = max(img.width, img.height)
-    if MAX_SIZE <= rSIZE:
-        convert_type(fp, img)
-        return
-    elif img.width > img.height:
-        lSIZE = round(img.height * rSIZE / img.width)
-        img_resize = img.resize((rSIZE, lSIZE), rTYPE)
-    else:
-        lSIZE = round(img.width * rSIZE / img.height)
-        img_resize = img.resize((lSIZE, rSIZE), rTYPE)
+    img_resize = img.resize((width, height), rTYPE)
     convert_type(fp, img_resize)
 
 
