@@ -7,13 +7,15 @@ name = "pypi"
 configparser = "*"
 pillow = "*"
 tqdm = "*"
+ordered-set="*"
+nuitka = "*"
+zstandard = "*"
 
 [dev-packages]
 mypy = "*"
 flake8 = "*"
-autopep8 = "*"
-nuitka = "*"
-zstandard = "*"
+black = "*"
+isort = "*"
 
 [requires]
 python_version = "3.10"
