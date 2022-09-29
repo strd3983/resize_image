@@ -1,47 +1,60 @@
+import configparser
+import ctypes
+import glob
+import imghdr
 import os
-version = 'v4.1b'
+import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from PIL import Image, ImageFile
+from tqdm import tqdm
+
+version = "v4.1b"
 
 
 # --------------------------------------------------
 # メイン関数
 # --------------------------------------------------
 def main():
-    import glob
-    from tqdm import tqdm
-
-    print('\n画像圧縮 by Python')
-    print(f'Version:{version}\n')
+    print("\n画像圧縮 by Python")
+    print(f"Version:{version}\n")
     width = 0  # 横幅
     height = 0  # 高さ
     rTYPE = 6  # フィルタタイプ
     width, height, rTYPE = config()
     if width <= 0 or height <= 0 or rTYPE < 0 or 5 < rTYPE:
-        print('E: setting.iniの値が不適切です\n')
+        print("E: setting.iniの値が不適切です\n")
         return
     fps = []
-    for fp in glob.glob(os.path.join(rel2abs_path('', 'exe'), '**'), recursive=True):
+    for fp in glob.iglob(os.path.join(rel2abs_path("", "exe"), "**"), recursive=True):
         if os.path.isdir(fp):
             print(fp)
         if os.path.isfile(fp) and file_type(fp) is not None:
             fps.append(fp)
-    for fp in tqdm(fps, unit=' file'):
-        try:
-            resize_img_file(fp, width, height, rTYPE)
-        except OSError as e:
-            print(f'\nE: 画像読み込みエラー: {e}')
+
+    try:
+        with tqdm(total=len(fps), unit=" file") as pbar:
+            tasks = []
+            with ThreadPoolExecutor() as executor:
+                for fp in fps:
+                    task = executor.submit(resize_img_file, fp, width, height, rTYPE)
+                    tasks += [task]
+                for f in as_completed(tasks):
+                    pbar.update(1)
+    except OSError as e:
+        print(f"\nE: 画像読み込みエラー: {e}")
 
 
 # --------------------------------------------------
 # 絶対パスを相対パスに [入:相対パス, 実行ファイル側or展開フォルダ側 出:絶対パス]
 # --------------------------------------------------
 def rel2abs_path(filename, attr):
-    import sys
-    if attr == 'temp':  # 展開先フォルダと同階層
+    if attr == "temp":  # 展開先フォルダと同階層
         datadir = os.path.dirname(__file__)
-    elif attr == 'exe':  # exeファイルと同階層の絶対パス
+    elif attr == "exe":  # exeファイルと同階層の絶対パス
         datadir = os.path.dirname(sys.argv[0])
     else:
-        raise print(f'E: 相対パスの引数ミス [{attr}]')
+        raise Exception(f"E: 相対パスの引数ミス [{attr}]")
     return os.path.join(datadir, filename)
 
 
@@ -49,31 +62,29 @@ def rel2abs_path(filename, attr):
 # read_file()関数によるiniファイルの読み込み
 # --------------------------------------------------
 def config():
-    import configparser
-
     width = 0  # リサイズサイズ
     rTYPE = 6  # フィルタタイプ
     config_ini = configparser.ConfigParser()
-    config_ini_path = rel2abs_path('setting.ini', 'exe')
+    config_ini_path = rel2abs_path("setting.ini", "exe")
     # iniファイルが存在するかチェック
     if os.path.exists(config_ini_path):
         # iniファイルが存在する場合、ファイルを読み込む
-        with open(config_ini_path, encoding='utf-8') as fp:
+        with open(config_ini_path, encoding="utf-8") as fp:
             config_ini.read_file(fp)
             # iniの値取得
-            read_default = config_ini['DEFAULT']
-            width = read_default.get('w')
-            height = read_default.get('h')
-            rTYPE = read_default.get('アルゴリズム')
+            read_default = config_ini["DEFAULT"]
+            width = int(read_default.get("w"))
+            height = int(read_default.get("h"))
+            rTYPE = int(read_default.get("アルゴリズム"))
             # 設定出力
-            print('###---------------------------------###')
-            print('横:', width)
-            print('縦:', height)
-            print('リサイズアルゴリズム:', rTYPE)
-            print('###---------------------------------###')
-            return int(width), int(height), int(rTYPE)
+            print("###---------------------------------###")
+            print("横:", width)
+            print("縦:", height)
+            print("リサイズアルゴリズム:", rTYPE)
+            print("###---------------------------------###")
+            return width, height, rTYPE
     else:
-        print('E: setting.iniが見つかりません\n')
+        print("E: setting.iniが見つかりません\n")
         return 0, 6
 
 
@@ -81,13 +92,12 @@ def config():
 # ファイルの画像判定
 # --------------------------------------------------
 def file_type(fp):
-    import imghdr
 
-    f = open(fp, 'rb')
+    f = open(fp, "rb")
     f_head = f.read()[:2]
     f.close()
-    if f_head == b'\xff\xd8':
-        return 'jpeg'
+    if f_head == b"\xff\xd8":
+        return "jpeg"
     else:
         return imghdr.what(fp)
 
@@ -96,8 +106,6 @@ def file_type(fp):
 # ファイルの属性解除
 # --------------------------------------------------
 def unsetReadonlyAttrib(fp):
-    import ctypes
-
     FILE_ATTRIBUTE_HIDDEN: int = 2
     FILE_ATTRIBUTE_READONLY: int = 1
     TARGETBITS: int = FILE_ATTRIBUTE_READONLY + FILE_ATTRIBUTE_HIDDEN
@@ -115,11 +123,7 @@ def unsetReadonlyAttrib(fp):
 # リサイズ処理
 # --------------------------------------------------
 def resize_img_file(fp, width, height, rTYPE):
-    from PIL import Image
-    from PIL import ImageFile
-
     ImageFile.LOAD_TRUNCATED_IMAGES = True
-
     # ファイルが画像ファイルかどうかを確認し、画像ファイルではない場合リサイズ処理は行わない
     img_type = file_type(fp)
     if img_type is None:
@@ -127,7 +131,7 @@ def resize_img_file(fp, width, height, rTYPE):
 
     # 指定パスのファイル属性を解除
     unsetReadonlyAttrib(fp)
-    img = Image.open(fp).convert('RGB')
+    img = Image.open(fp).convert("RGB")
     img_resize = img.resize((width, height), rTYPE)
     convert_type(fp, img_resize)
 
@@ -137,9 +141,8 @@ def resize_img_file(fp, width, height, rTYPE):
 # --------------------------------------------------
 def convert_type(fp, img):
     fp_remove = fp
-    if os.path.splitext(fp)[1] == '.png':
-        fp = os.path.join(os.path.dirname(fp),
-                          os.path.splitext(os.path.basename(fp))[0] + '.jpg')
+    if os.path.splitext(fp)[1] == ".png":
+        fp = os.path.join(os.path.dirname(fp), os.path.splitext(os.path.basename(fp))[0] + ".jpg")
         img.save(fp, "JPEG")
         del img
         os.remove(fp_remove)
@@ -152,6 +155,6 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        print('E: ', e)
-    print('M: 終了しました')
-    os.system('PAUSE')
+        print("E: ", e)
+    print("M: 終了しました")
+    os.system("PAUSE")
