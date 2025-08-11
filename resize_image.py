@@ -19,14 +19,15 @@ version = "v5.0"
 def main() -> None:
     print("\n画像圧縮 by Python")
     print(f"Version:{version}\n")
-    rSIZE = 0  # リサイズサイズ
+    rSIZE = 1280  # リサイズサイズ
     rTYPE = 6  # フィルタタイプ
-    rSIZE, rTYPE = config()
+    rTHRED = 8  # スレッド数
+    rSIZE, rTYPE, rTHRED = config()
     if rSIZE <= 0 or rTYPE < 0 or 5 < rTYPE:
         print("E: setting.iniの値が不適切です\n")
         return
     fps = []
-    for fp in glob.glob(os.path.join(rel2abs_path("", "exe"), "**"), recursive=True):
+    for fp in glob.iglob(os.path.join(rel2abs_path("", "exe"), "**"), recursive=True):
         if os.path.isdir(fp):
             print(fp)
         if os.path.isfile(fp) and file_type(fp) is not None:
@@ -34,7 +35,7 @@ def main() -> None:
     try:
         with tqdm(total=len(fps), unit=" file") as pbar:
             tasks = []
-            with ThreadPoolExecutor() as executor:
+            with ThreadPoolExecutor(max_workers=rTHRED) as executor:
                 for fp in fps:
                     task = executor.submit(resize_img_file, fp, rSIZE, rTYPE)
                     tasks += [task]
@@ -60,7 +61,7 @@ def rel2abs_path(filename, attr) -> str:
 # --------------------------------------------------
 # read_file()関数によるiniファイルの読み込み
 # --------------------------------------------------
-def config() -> Tuple[int, int]:
+def config() -> Tuple[int, int, int]:
     rSIZE = 0  # リサイズサイズ
     rTYPE = 6  # フィルタタイプ
     config_ini = configparser.ConfigParser()
@@ -74,12 +75,14 @@ def config() -> Tuple[int, int]:
             read_default = config_ini["DEFAULT"]
             rSIZE = int(read_default.get("長辺サイズ"))
             rTYPE = int(read_default.get("アルゴリズム"))
+            rTHRED = int(read_default.get("スレッド数"))
             # 設定出力
             print("###---------------------------------###")
             print("長辺サイズ:", rSIZE)
             print("リサイズアルゴリズム:", rTYPE)
+            print("スレッド数:", rTHRED)
             print("###---------------------------------###")
-            return rSIZE, rTYPE
+            return rSIZE, rTYPE, rTHRED
     else:
         print("E: setting.iniが見つかりません\n")
         return 0, 6
