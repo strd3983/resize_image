@@ -1,13 +1,11 @@
 import configparser
 import ctypes
-import glob
-import imghdr
-import os
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 from typing import Tuple
 
-from PIL import Image, ImageFile
+from PIL import Image, ImageFile, UnidentifiedImageError
 from tqdm import tqdm
 
 version = "v5.0"
@@ -26,57 +24,51 @@ def main() -> None:
     if rSIZE <= 0 or rTYPE < 0 or 5 < rTYPE:
         print("E: setting.iniの値が不適切です\n")
         return
-    fps = []
-    for fp in glob.iglob(os.path.join(rel2abs_path("", "exe"), "**"), recursive=True):
-        if os.path.isdir(fp):
-            print(fp)
-        if os.path.isfile(fp) and file_type(fp) is not None:
-            fps.append(fp)
+
+    base_dir = rel2abs_path("", "exe")
+    fps = [fp for fp in base_dir.rglob("*") if fp.is_file() and is_image_file(fp)]
+
     try:
         with tqdm(total=len(fps), unit=" file") as pbar:
             tasks = []
             with ThreadPoolExecutor(max_workers=rTHRED) as executor:
                 for fp in fps:
                     task = executor.submit(resize_img_file, fp, rSIZE, rTYPE)
-                    tasks += [task]
-                for f in as_completed(tasks):
+                    tasks.append(task)
+                for _ in as_completed(tasks):
                     pbar.update(1)
     except OSError as e:
         print(f"\nE: 画像読み込みエラー: {e}")
 
 
 # --------------------------------------------------
-# 絶対パスを相対パスに [入:相対パス, 実行ファイル側or展開フォルダ側 出:絶対パス]
+# 相対パスを絶対パスに変換
 # --------------------------------------------------
-def rel2abs_path(filename, attr) -> str:
-    if attr == "temp":  # 展開先フォルダと同階層
-        datadir = os.path.dirname(__file__)
-    elif attr == "exe":  # exeファイルと同階層の絶対パス
-        datadir = os.path.dirname(sys.argv[0])
+def rel2abs_path(filename: str, attr: str) -> Path:
+    if attr == "temp":
+        datadir = Path(__file__).parent
+    elif attr == "exe":
+        datadir = Path(sys.argv[0]).parent
     else:
         raise Exception(f"E: 相対パスの引数ミス [{attr}]")
-    return os.path.join(datadir, filename)
+    return (datadir / filename).resolve()
 
 
 # --------------------------------------------------
-# read_file()関数によるiniファイルの読み込み
+# iniファイルの読み込み
 # --------------------------------------------------
 def config() -> Tuple[int, int, int]:
-    rSIZE = 0  # リサイズサイズ
-    rTYPE = 6  # フィルタタイプ
+    rSIZE = 0
+    rTYPE = 6
     config_ini = configparser.ConfigParser()
     config_ini_path = rel2abs_path("setting.ini", "exe")
-    # iniファイルが存在するかチェック
-    if os.path.exists(config_ini_path):
-        # iniファイルが存在する場合、ファイルを読み込む
-        with open(config_ini_path, encoding="utf-8") as fp:
+    if config_ini_path.exists():
+        with config_ini_path.open(encoding="utf-8") as fp:
             config_ini.read_file(fp)
-            # iniの値取得
             read_default = config_ini["DEFAULT"]
             rSIZE = int(read_default.get("長辺サイズ"))
             rTYPE = int(read_default.get("アルゴリズム"))
             rTHRED = int(read_default.get("スレッド数"))
-            # 設定出力
             print("###---------------------------------###")
             print("長辺サイズ:", rSIZE)
             print("リサイズアルゴリズム:", rTYPE)
@@ -85,81 +77,73 @@ def config() -> Tuple[int, int, int]:
             return rSIZE, rTYPE, rTHRED
     else:
         print("E: setting.iniが見つかりません\n")
-        return 0, 6
+        return 0, 6, 0
 
 
 # --------------------------------------------------
-# ファイルの画像判定
+# 画像判定
 # --------------------------------------------------
-def file_type(fp) -> str:
-    f = open(fp, "rb")
-    f_head = f.read()[:2]
-    f.close()
-    if f_head == b"\xff\xd8":
-        return "jpeg"
-    else:
-        return str(imghdr.what(fp))
+def is_image_file(filepath: Path) -> bool:
+    try:
+        img = Image.open(filepath)
+        img.verify()
+        return True
+    except (IOError, SyntaxError, UnidentifiedImageError):
+        return False
+    except Exception as e:
+        print(f"{filepath}: {e}")
+        return False
 
 
 # --------------------------------------------------
-# ファイルの属性解除
+# ファイル属性解除（Windows）
 # --------------------------------------------------
-def unsetReadonlyAttrib(fp) -> None:
-    FILE_ATTRIBUTE_HIDDEN: int = 2
-    FILE_ATTRIBUTE_READONLY: int = 1
-    TARGETBITS: int = FILE_ATTRIBUTE_READONLY + FILE_ATTRIBUTE_HIDDEN
+def unsetReadonlyAttrib(fp: Path) -> None:
+    FILE_ATTRIBUTE_HIDDEN = 2
+    FILE_ATTRIBUTE_READONLY = 1
+    TARGETBITS = FILE_ATTRIBUTE_READONLY + FILE_ATTRIBUTE_HIDDEN
     REV_TARGETBITS = ~TARGETBITS
 
-    # Windowsファイル属性を取得
-    val: int = ctypes.windll.kernel32.GetFileAttributesW(fp)
+    val = ctypes.windll.kernel32.GetFileAttributesW(str(fp))
     if 0 != (val & 3):
         val = val & REV_TARGETBITS
-        # Windowsファイル属性を再設定
-        ctypes.windll.kernel32.SetFileAttributesW(fp, val)
+        ctypes.windll.kernel32.SetFileAttributesW(str(fp), val)
 
 
 # --------------------------------------------------
 # リサイズ処理
 # --------------------------------------------------
-def resize_img_file(fp, rSIZE, rTYPE) -> None:
+def resize_img_file(fp: Path, rSIZE: int, rTYPE: int) -> None:
     ImageFile.LOAD_TRUNCATED_IMAGES = True
 
-    # ファイルが画像ファイルかどうかを確認し、画像ファイルではない場合リサイズ処理は行わない
-    img_type = file_type(fp)
-    if img_type is None:
+    if not is_image_file(fp):
         return
 
-    # 指定パスのファイル属性を解除
     unsetReadonlyAttrib(fp)
     img = Image.open(fp).convert("RGB")
 
-    # 長編サイズがrSIZE px以下のときはスルー
-    MAX_SIZE = max(img.width, img.height)
-    if MAX_SIZE <= rSIZE:
-        convert_type(fp, img)
-        return
+    if max(img.width, img.height) <= rSIZE:
+        img_resize = img
     elif img.width > img.height:
         lSIZE = round(img.height * rSIZE / img.width)
         img_resize = img.resize((rSIZE, lSIZE), rTYPE)
     else:
         lSIZE = round(img.width * rSIZE / img.height)
         img_resize = img.resize((lSIZE, rSIZE), rTYPE)
+
     convert_type(fp, img_resize)
 
 
 # --------------------------------------------------
-# ファイルが.pngである場合.jpgに変換
+# png, webp → jpg 変換
 # --------------------------------------------------
-def convert_type(fp, img) -> None:
-    fp_remove = fp
-    if os.path.splitext(fp)[1] == ".png":
-        fp = os.path.join(os.path.dirname(fp), os.path.splitext(os.path.basename(fp))[0] + ".jpg")
-        img.save(fp, "JPEG")
-        del img
-        os.remove(fp_remove)
-    else:
-        img.save(fp, "JPEG")
-        del img
+def convert_type(fp: Path, img) -> None:
+    ext = fp.suffix.lower()
+    fp.unlink()
+    if ext in {".png", ".webp"}:
+        fp = fp.with_suffix(".jpg")
+    img.save(fp, "JPEG")
+    del img
 
 
 if __name__ == "__main__":
@@ -168,4 +152,4 @@ if __name__ == "__main__":
     except Exception as e:
         print("E: ", e)
     print("M: 終了しました")
-    os.system("PAUSE")
+    input("Press Enter to continue...")
